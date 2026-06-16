@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template, jsonify
-import tensorflow as tf
+import tflite_runtime.interpreter as tf
 import numpy as np
 import os
 from werkzeug.utils import secure_filename
