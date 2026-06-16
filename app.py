@@ -15,9 +15,14 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# 1. Load Model CNN yang sudah dilatih tadi
-MODEL_PATH = 'models/cnn_model.h5'
-model = tf.keras.models.load_model(MODEL_PATH)
+# 1. LOAD MODEL MENGGUNAKAN TFLITE INTERPRETER (Update untuk Vercel)
+TFLITE_PATH = 'models/cnn_model.tflite'
+interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
+interpreter.allocate_tensors()
+
+# Mengambil informasi detail input dan output tensor dari model
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
 # Label kelas sesuai urutan folder alphabet dataset Rock-Paper-Scissors
 CLASS_NAMES = ['Kertas (Paper)', 'Batu (Rock)', 'Gunting (Scissors)']
@@ -31,14 +36,18 @@ def predict_image(img_path):
     img = tf.keras.preprocessing.image.load_img(img_path, target_size=(150, 150))
     img_array = tf.keras.preprocessing.image.img_to_array(img)
     img_array = img_array / 255.0  # Normalisasi pixel (0-1)
-    img_array = np.expand_dims(img_array, axis=0)  # Tambah dimensi batch (1, 150, 150, 3)
+    # Tambah dimensi batch (1, 150, 150, 3) dan paksa tipe data ke float32 sesuai input TFLite
+    img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
     
-    # Lakukan Prediksi
-    predictions = model.predict(img_array)
-    score = tf.nn.softmax(predictions[0])
+    # LAKUKAN PREDIKSI DENGAN TFLITE INTERPRETER
+    interpreter.set_tensor(input_details[0]['index'], img_array)
+    interpreter.invoke()
     
-    class_idx = np.argmax(predictions)
-    confidence = 100 * np.max(predictions) # Persentase keyakinan model
+    # Ambil hasil output prediksi dari tensor
+    predictions = interpreter.get_tensor(output_details[0]['index'])
+    
+    class_idx = np.argmax(predictions[0])
+    confidence = 100 * np.max(predictions[0]) # Persentase keyakinan model
     
     return CLASS_NAMES[class_idx], f"{confidence:.2f}%"
 
@@ -71,6 +80,10 @@ def index():
             )
             
     return render_template('index.html')
+
+# Handler WSGI khusus yang diwajibkan oleh Vercel Serverless Function
+def handler(environ, start_response):
+    return app(environ, start_response)
 
 if __name__ == '__main__':
     app.run(debug=True)
