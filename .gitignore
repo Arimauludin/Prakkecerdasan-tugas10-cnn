@@ -1,0 +1,6 @@
+.venv/
+venv/
+__pycache__/
+static/uploads/*
+!static/uploads/.gitkeep
+models/cnn_model.h5
